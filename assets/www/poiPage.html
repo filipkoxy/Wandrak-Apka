@@ -1,0 +1,122 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+
+	<title>Wandrak</title>
+
+	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile-1.1.1.min.css" />
+	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile.structure-1.1.1.min.css" />
+	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile.theme-1.1.1.min.css" />
+
+	<script type="text/javascript" charset="utf-8" src="inc/cordova-2.0.0.js"></script>
+	<script type="text/javascript" charset="utf-8" src="inc/jquery.js"></script>
+	<script type="text/javascript" charset="utf-8" src="inc/jquery.mobile-1.1.1.min.js"></script>
+	<script type="text/javascript" charset="utf-8" src="inc/jquery.tmpl.min.js"></script>
+
+	<script type="text/javascript">
+		var LIST_POIS_URL = 'http://wandrak.ideoci.eu/?json=get_page&children=1&page_id=';
+
+		$(function() {
+			$("#msgBox").hide();
+
+		});
+
+		function listSuccess(data) {
+			if (data.status == 'ok') {
+				$("#pageList").listview();
+				$.each(data.posts, function (key, post) {
+					$("#postItemTemplate").tmpl(post).appendTo("#pageList");
+				});
+				$("#pageList").listview('refresh');
+				$(".post_item_lnk").click(function () {
+					viewPost($(this).data('id'));
+				});
+				return;
+			}
+			$("#msgBox").show();
+			$("#msgBox").html('Failed to read data!');
+		}
+
+		function listError(param) {
+			$("#msgBox").show();
+			$("#msgBox").html('Failed to read data!');
+		}
+
+		function viewPost(postId) {
+			$.ajax({
+				url: LIST_POIS_URL + postId,
+				type: 'GET',
+				dataType: 'json',
+				success: listPOIsSuccess,
+				error: listPOIsError
+			});
+		}
+
+		var poiListInitialized = false;
+		function listPOIsSuccess(data) {
+			if (data.status == 'ok') {
+				window.location.href = 'index.html#poiPage';
+				if (!poiListInitialized) {
+					$("#poiList").listview();
+				}
+				$("#pageLabel").html('label');
+
+				$.each(data.posts, function (key, post) {
+					$("#poiItemTemplate").tmpl(post).appendTo("#poiList");
+				});
+				$("#poiList").listview('refresh');
+				$(".poi_item_lnk").click(function () {
+					
+				});
+				return;
+			}
+			$("#msgBox").show();
+			$("#msgBox").html('Failed to read data!');
+		}
+
+		function listPOIsError(param) {
+			$("#msgBox").show();
+			$("#msgBox").html('Failed to read data!');
+		}
+
+	</script>
+
+	<script id="postItemTemplate" type="text/x-jquery-tmpl">
+		<li data-theme="c" class="post_item_lnk">
+			<a href="#" data-transition="slide" data-id="${id}">
+				${title}
+			</a>
+		</li>
+	</script>
+
+	<script id="poiItemTemplate" type="text/x-jquery-tmpl">
+		<li data-theme="c" class="poi_item_lnk">
+			<a href="#${id}" data-transition="slide" data-id="${id}">
+				${title}
+			</a>
+		</li>
+	</script>
+</head>
+
+<body>
+
+	<div data-role="page" id="poiPage">
+	    <div data-role="content" style="padding: 15px">
+	        <h2 id="pageLabel">
+	            
+	        </h2>
+	        <div id="msgBox"></div>
+			<ul data-role="listview" data-theme="b" id="poiList">
+	            <li data-role="list-divider" role="heading">
+	                POIs
+	            </li>
+			</ul>
+
+			<a data-role="button" data-transition="fade" href="#poiDetail">
+				Add poi
+			</a>
+	    </div>
+	</div>
+
+</body>
+</html>
