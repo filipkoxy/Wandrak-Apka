@@ -14,11 +14,18 @@
 	<script type="text/javascript" charset="utf-8" src="inc/jquery.tmpl.min.js"></script>
 
 	<script type="text/javascript">
+		var LOGIN_PARAMS = '&user=admin&pass=heslo';
+
 		var LIST_POSTS_URL = 'http://wandrak.ideoci.eu/?json=get_posts&post_type=page';
 		var LIST_POIS_URL = 'http://wandrak.ideoci.eu/?json=get_page&children=1&page_id=';
+		var WRITE_PAGE_URL = 'http://wandrak.ideoci.eu/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
+
+		var poiPage_postId = 0;
+		var currentPoi = {};
+		var listedPois = {};
 
 		$(function() {
-			$("#msgBox").hide();
+			$(".msg_box").hide();
 
 			$.ajax({
 				url: LIST_POSTS_URL,
@@ -27,7 +34,104 @@
 				success: listSuccess,
 				error: listError
 			});
+
+			$('#poiPage').live('pageshow', function(event, ui) {
+				$.ajax({
+					url: LIST_POIS_URL + poiPage_postId,
+					type: 'GET',
+					dataType: 'json',
+					success: listPOIsSuccess,
+					error: listPOIsError
+				});
+			});
+			$('#updatePoiPage').live('pageshow', function (event, ui) {
+				if (currentPoi.findGeo) {
+					$.mobile.changePage($('#gpsPositionWaitPage'));
+					navigator.geolocation.getCurrentPosition(initPoiPageWithGeoLocation, geolocationFailed);
+					return;
+				}
+				initUpdatePoiPage();
+			});
+			$(".add_poi_lnk").click(function () {
+				currentPoi = { findGeo: true };
+			});
 		});
+
+		function initPoiPageWithGeoLocation(position) {
+			currentPoi.custom_fields['lat'] = [ position.coords.latitude ];
+			currentPoi.custom_fields['lng'] = [ position.coords.longitude ];
+
+			$("#geolocationInfo").show();
+			$("#geolocationInfo").html(
+					'latitude: ' + position.coords.latitude + '<br/>' +
+					'longitude:' + position.coords.longitude);
+
+			currentPoi.findGeo = false;
+			$.mobile.changePage($('#updatePoiPage'));
+			initUpdatePoiPage();
+		}
+
+		function geolocationFailed(error) {
+			$("#geolocationInfo").show();
+			$("#geolocationInfo").html('Geolocation failed!<br/>code: ' + error.code + 'message: ' + error.message);
+
+			currentPoi.findGeo = false;
+			$.mobile.changePage($('#updatePoiPage'));
+			initUpdatePoiPage();
+		}
+
+		function initUpdatePoiPage() {
+			$("#poiUpdateTitle").val(currentPoi.title);
+			$("#poiUpdateDescription").val(currentPoi.content);
+			$("#poiUpdateOK").click(function () {
+				var title = $("#poiUpdateTitle").val();
+				var descr = $("#poiUpdateDescription").val();
+				var lat = 0;
+				if (currentPoi.custom_fields['lat']) {
+					lat = currentPoi.custom_fields['lat'][0];
+				}
+				var lng = 0;
+				if (currentPoi.custom_fields['lng']) {
+					lng = currentPoi.custom_fields['lng'][0];
+				}
+				var poiType = 'cook';
+				if (currentPoi.custom_fields['poiType']) {
+					poiType = currentPoi.custom_fields['poiType'][0];
+				}
+
+				var parentPostId = poiPage_postId;
+				var url = WRITE_PAGE_URL
+								+ '&title=' + title
+								+ '&content=' + descr
+								+ '&id=' + currentPoi.id
+								+ '&markerId=0'
+								+ '&lat=' + lat
+								+ '&lng=' + lng
+								+ '&poiType=' + poiType
+								+ '&parent_id=' + parentPostId;
+
+				$.ajax({
+				    url: url,
+				    type: 'GET',
+				    dataType: 'json',
+				    success: updatePOISuccess,
+				    error: updatePOIError
+				});
+			});
+		}
+
+		function updatePOISuccess(data) {
+			if (data.status == 'ok') {
+				return;
+			}
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to store data!');
+		}
+
+		function updatePOIError() {
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to store data!');
+		}
 
 		function listSuccess(data) {
 			if (data.status == 'ok') {
@@ -37,69 +141,64 @@
 				});
 				$("#pageList").listview('refresh');
 				$(".post_item_lnk").click(function () {
-					//viewPost($(this).data('id'));
+					poiPage_postId = $(this).data('id');
 				});
 				return;
 			}
-			$("#msgBox").show();
-			$("#msgBox").html('Failed to read data!');
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to read data!');
 		}
 
 		function listError(param) {
-			$("#msgBox").show();
-			$("#msgBox").html('Failed to read data!');
-		}
-
-		function viewPost(postId) {
-			$.ajax({
-				url: LIST_POIS_URL + postId,
-				type: 'GET',
-				dataType: 'json',
-				success: listPOIsSuccess,
-				error: listPOIsError
-			});
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to read data!');
 		}
 
 		var poiListInitialized = false;
 		function listPOIsSuccess(data) {
 			if (data.status == 'ok') {
-				window.location.href = 'index.html#poiPage';
 				if (!poiListInitialized) {
 					$("#poiList").listview();
+					poiListInitialized = true;
 				}
-				$("#pageLabel").html('label');
+				$("#pageLabel").html(data.page.title);
 
-				$.each(data.posts, function (key, post) {
+				$("#poiList").empty();
+				$("#poiList").append('<li data-role="list-divider" role="heading">POIs</li>');
+				listedPois = {};
+				$.each(data.page.children, function (key, post) {
 					$("#poiItemTemplate").tmpl(post).appendTo("#poiList");
+					listedPois[post.id] = post;
 				});
 				$("#poiList").listview('refresh');
 				$(".poi_item_lnk").click(function () {
-					
+					currentPoi = listedPois[$(this).data('id')];
 				});
 				return;
 			}
-			$("#msgBox").show();
-			$("#msgBox").html('Failed to read data!');
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to read data!');
 		}
 
 		function listPOIsError(param) {
-			$("#msgBox").show();
-			$("#msgBox").html('Failed to read data!');
+			$(".msg_box").show();
+			$(".msg_box").html('Failed to read data!');
 		}
 
 	</script>
 
 	<script id="postItemTemplate" type="text/x-jquery-tmpl">
-		<li data-theme="c" class="post_item_lnk">
-			<a href="poiPage" data-transition="slide" data-id="${id}">
+		<li data-theme="c">
+			<a href="#poiPage" data-transition="slide" data-id="${id}" class="post_item_lnk">
 				${title}
 			</a>
 		</li>
 	</script>
 
 	<script id="poiItemTemplate" type="text/x-jquery-tmpl">
-		<li data-theme="c" class="poi_item_lnk">
-			<a href="#${id}" data-transition="slide" data-id="${id}">
+		<li data-theme="c">
+			<a href="#updatePoiPage" data-transition="slide" data-id="${id}" class="poi_item_lnk"
+					data-title="${title}" >
 				${title}
 			</a>
 		</li>
@@ -109,11 +208,13 @@
 <body>
 
 	<div data-role="page" id="mainPage">
-	    <div data-role="content" style="padding: 15px">
-	        <h2>
+	    <div data-theme="a" data-role="header">
+	        <h3>
 	            Wandrak
-	        </h2>
-	        <div id="msgBox"></div>
+	        </h3>
+	    </div>
+	    <div data-role="content" style="padding: 15px">
+	        <h5 class="msg_box"></h5>
 			<ul data-role="listview" data-theme="b" id="pageList">
 	            <li data-role="list-divider" role="heading">
 	                Pages
@@ -123,22 +224,93 @@
 	</div>
 
 	<div data-role="page" id="poiPage">
+	    <div data-theme="a" data-role="header">
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
+	            Home
+	        </a>
+	        <a data-role="button" data-rel="back" data-transition="fade" href="#mainPage" class="ui-btn-right">
+	            Back
+	        </a>
+	        <h3>
+	            Wandrak
+	        </h3>
+	    </div>
 	    <div data-role="content" style="padding: 15px">
 	        <h2 id="pageLabel">
 	            
 	        </h2>
-	        <div id="msgBox"></div>
-			<ul data-role="listview" data-theme="b" id="poiList">
-	            <li data-role="list-divider" role="heading">
-	                POIs
-	            </li>
+	        <h5 class="msg_box"></h5>
+			<ul data-role="listview" data-theme="b" id="poiList" data-inset="true">
+	            
 			</ul>
 
-			<a data-role="button" data-transition="fade" href="#poiDetail">
+			<a data-role="button" data-transition="fade" href="#updatePoiPage" class="add_poi_lnk">
 				Add poi
 			</a>
 	    </div>
 	</div>
 
+	<div data-role="page" id="updatePoiPage">
+	    <div data-theme="a" data-role="header">
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
+	            Home
+	        </a>
+	        <a data-role="button" data-rel="back" data-transition="fade" href="#poiPage" class="ui-btn-right">
+	            Back
+	        </a>
+	        <h3>
+	            Wandrak
+	        </h3>
+	    </div>
+	    <div data-role="content" style="padding: 15px">
+	        <h2>
+	        	Update / create poi
+	        </h2>
+	        <h5 class="msg_box"></h5>
+	        <div data-role="fieldcontain">
+	            <fieldset data-role="controlgroup">
+	                <label for="poiUpdateTitle">
+	                    Title
+	                </label>
+	                <input name="" id="poiUpdateTitle" placeholder="" value="" type="text">
+	            </fieldset>
+	        </div>
+	        <div data-role="fieldcontain">
+	            <fieldset data-role="controlgroup">
+	                <label for="poiUpdateDescription">
+	                    Description
+	                </label>
+	                <textarea name="" id="poiUpdateDescription" placeholder=""></textarea>
+	            </fieldset>
+	        </div>
+	        <h5 id="geolocationInfo"></h5>
+	        <a data-role="button" data-inline="true" data-transition="fade" href="#poiPage" id="poiUpdateOK">
+	            OK
+	        </a>
+	        <a data-role="button" data-inline="true" data-transition="fade" href="#poiPage">
+	            Cancel
+	        </a>
+	    </div>
+	</div>
+
+	<div data-role="page" id="gpsPositionWaitPage">
+	    <div data-theme="a" data-role="header">
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
+	            Home
+	        </a>
+	        <a data-role="button" data-rel="back" data-transition="fade" href="#poiPage" class="ui-btn-right">
+	            Back
+	        </a>
+	        <h3>
+	            Wandrak
+	        </h3>
+	    </div>
+	    <div data-role="content" style="padding: 15px">
+	        <h2>
+	        	Update / create poi
+	        </h2>
+	        <h5>Searching for GPS position..</h5>
+	    </div>
+	</div>
 </body>
 </html>
