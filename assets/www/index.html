@@ -7,6 +7,7 @@
 	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile-1.1.1.min.css" />
 	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile.structure-1.1.1.min.css" />
 	<link rel="stylesheet" type="text/css" media="all" href="inc/jquery.mobile.theme-1.1.1.min.css" />
+	<link rel="stylesheet" type="text/css" media="all" href="custom/wandrak_mob.min.css" />
 
 	<script type="text/javascript" charset="utf-8" src="inc/cordova-2.0.0.js"></script>
 	<script type="text/javascript" charset="utf-8" src="inc/jquery.js"></script>
@@ -16,7 +17,7 @@
 	<script type="text/javascript">
 		var LOGIN_PARAMS = '&user=admin&pass=heslo';
 
-		var LIST_POSTS_URL = 'http://wandrak.ideoci.eu/?json=get_posts&post_type=page';
+		var LIST_POSTS_URL = 'http://wandrak.ideoci.eu/?json=get_posts&post_type=page&parent=no_parent';
 		var LIST_POIS_URL = 'http://wandrak.ideoci.eu/?json=get_page&children=1&page_id=';
 		var WRITE_PAGE_URL = 'http://wandrak.ideoci.eu/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
 
@@ -36,6 +37,8 @@
 			});
 
 			$('#poiPage').live('pageshow', function(event, ui) {
+				$("#poiUpdateTitle").val(currentPoi.title);
+				$("#poiUpdateDescription").val(currentPoi.content);
 				$.ajax({
 					url: LIST_POIS_URL + poiPage_postId,
 					type: 'GET',
@@ -53,36 +56,8 @@
 				initUpdatePoiPage();
 			});
 			$(".add_poi_lnk").click(function () {
-				currentPoi = { findGeo: true };
+				currentPoi = { findGeo: true, custom_fields: {} };
 			});
-		});
-
-		function initPoiPageWithGeoLocation(position) {
-			currentPoi.custom_fields['lat'] = [ position.coords.latitude ];
-			currentPoi.custom_fields['lng'] = [ position.coords.longitude ];
-
-			$("#geolocationInfo").show();
-			$("#geolocationInfo").html(
-					'latitude: ' + position.coords.latitude + '<br/>' +
-					'longitude:' + position.coords.longitude);
-
-			currentPoi.findGeo = false;
-			$.mobile.changePage($('#updatePoiPage'));
-			initUpdatePoiPage();
-		}
-
-		function geolocationFailed(error) {
-			$("#geolocationInfo").show();
-			$("#geolocationInfo").html('Geolocation failed!<br/>code: ' + error.code + 'message: ' + error.message);
-
-			currentPoi.findGeo = false;
-			$.mobile.changePage($('#updatePoiPage'));
-			initUpdatePoiPage();
-		}
-
-		function initUpdatePoiPage() {
-			$("#poiUpdateTitle").val(currentPoi.title);
-			$("#poiUpdateDescription").val(currentPoi.content);
 			$("#poiUpdateOK").click(function () {
 				var title = $("#poiUpdateTitle").val();
 				var descr = $("#poiUpdateDescription").val();
@@ -118,6 +93,32 @@
 				    error: updatePOIError
 				});
 			});
+		});
+
+		function initPoiPageWithGeoLocation(position) {
+			currentPoi.custom_fields['lat'] = [ position.coords.latitude ];
+			currentPoi.custom_fields['lng'] = [ position.coords.longitude ];
+
+			$("#geolocationInfo").show();
+			$("#geolocationInfo").html(
+					'latitude: ' + position.coords.latitude + '<br/>' +
+					'longitude:' + position.coords.longitude);
+
+			currentPoi.findGeo = false;
+			$.mobile.changePage($('#updatePoiPage'));
+		}
+
+		function geolocationFailed(error) {
+			$("#geolocationInfo").show();
+			$("#geolocationInfo").html('Failed to find geolocation!<br/>Error code ' + error.code + ': ' + error.message);
+
+			currentPoi.findGeo = false;
+			$.mobile.changePage($('#updatePoiPage'));
+		}
+
+		function initUpdatePoiPage() {
+			$("#poiUpdateTitle").val(currentPoi.title);
+			$("#poiUpdateDescription").val(currentPoi.content);
 		}
 
 		function updatePOISuccess(data) {
@@ -141,6 +142,7 @@
 				});
 				$("#pageList").listview('refresh');
 				$(".post_item_lnk").click(function () {
+					$("#poiList").empty();
 					poiPage_postId = $(this).data('id');
 				});
 				return;
@@ -173,6 +175,7 @@
 				$("#poiList").listview('refresh');
 				$(".poi_item_lnk").click(function () {
 					currentPoi = listedPois[$(this).data('id')];
+					$("#geolocationInfo").hide();
 				});
 				return;
 			}
@@ -228,7 +231,7 @@
 	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
 	            Home
 	        </a>
-	        <a data-role="button" data-rel="back" data-transition="fade" href="#mainPage" class="ui-btn-right">
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-right">
 	            Back
 	        </a>
 	        <h3>
@@ -255,7 +258,7 @@
 	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
 	            Home
 	        </a>
-	        <a data-role="button" data-rel="back" data-transition="fade" href="#poiPage" class="ui-btn-right">
+	        <a data-role="button" data-transition="fade" href="#poiPage" class="ui-btn-right">
 	            Back
 	        </a>
 	        <h3>
@@ -298,7 +301,7 @@
 	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
 	            Home
 	        </a>
-	        <a data-role="button" data-rel="back" data-transition="fade" href="#poiPage" class="ui-btn-right">
+	        <a data-role="button" data-transition="fade" href="#poiPage" class="ui-btn-right">
 	            Back
 	        </a>
 	        <h3>
