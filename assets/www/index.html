@@ -28,13 +28,7 @@
 		$(function() {
 			$(".msg_box").hide();
 
-			$.ajax({
-				url: LIST_POSTS_URL,
-				type: 'GET',
-				dataType: 'json',
-				success: listSuccess,
-				error: listError
-			});
+			app_startup();
 
 			$('#poiPage').live('pageshow', function(event, ui) {
 				$("#poiUpdateTitle").val(currentPoi.title);
@@ -85,15 +79,33 @@
 								+ '&poiType=' + poiType
 								+ '&parent_id=' + parentPostId;
 
-				$.ajax({
-				    url: url,
-				    type: 'GET',
-				    dataType: 'json',
-				    success: updatePOISuccess,
-				    error: updatePOIError
-				});
+				db_storeItem({ url: url, file: '' });
+				db_trySendItems();
+			});
+			$("#offlineSendOK").click(function () {
+				db_message("Sending posts to server.");
+				db_trySendItems(load_posts);
 			});
 		});
+
+		function app_startup() {
+			if (db_canStoreToServer() && db_readItems() && db_readItems().length > 0) {
+				$.mobile.changePage($('#offlineSendPage'));
+				return;
+			}
+
+			load_posts();
+		}
+		
+		function load_posts() {
+			$.ajax({
+				url: LIST_POSTS_URL,
+				type: 'GET',
+				dataType: 'json',
+				success: listSuccess,
+				error: listError
+			});
+		}
 
 		function initPoiPageWithGeoLocation(position) {
 			currentPoi.custom_fields['lat'] = [ position.coords.latitude ];
@@ -119,19 +131,6 @@
 		function initUpdatePoiPage() {
 			$("#poiUpdateTitle").val(currentPoi.title);
 			$("#poiUpdateDescription").val(currentPoi.content);
-		}
-
-		function updatePOISuccess(data) {
-			if (data.status == 'ok') {
-				return;
-			}
-			$(".msg_box").show();
-			$(".msg_box").html('Failed to store data!');
-		}
-
-		function updatePOIError() {
-			$(".msg_box").show();
-			$(".msg_box").html('Failed to store data!');
 		}
 
 		function listSuccess(data) {
@@ -313,6 +312,32 @@
 	        	Update / create poi
 	        </h2>
 	        <h5>Searching for GPS position..</h5>
+	    </div>
+	</div>
+
+	<div data-role="page" id="offlineSendPage">
+	    <div data-theme="a" data-role="header">
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-left">
+	            Home
+	        </a>
+	        <a data-role="button" data-transition="fade" href="#mainPage" class="ui-btn-right">
+	            Back
+	        </a>
+	        <h3>
+	            Wandrak
+	        </h3>
+	    </div>
+	    <div data-role="content" style="padding: 15px">
+	        <h2>
+	        	Offline data
+	        </h2>
+	        <h5>Found unsaved offline data. Upload data now?</h5>
+	        <a data-role="button" data-inline="true" data-transition="fade" href="#mainPage" id="offlineSendOK">
+	            OK
+	        </a>
+	        <a data-role="button" data-inline="true" data-transition="fade" href="#mainPage">
+	            Cancel
+	        </a>
 	    </div>
 	</div>
 </body>
