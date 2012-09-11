@@ -14,6 +14,8 @@
 	<script type="text/javascript" charset="utf-8" src="inc/jquery.mobile-1.1.1.min.js"></script>
 	<script type="text/javascript" charset="utf-8" src="inc/jquery.tmpl.min.js"></script>
 
+	<script type="text/javascript" charset="utf-8" src="custom/wandrak_db.js"></script>
+
 	<script type="text/javascript">
 		var LOGIN_PARAMS = '&user=admin&pass=heslo';
 
@@ -26,9 +28,8 @@
 		var listedPois = {};
 
 		$(function() {
+			console.log("onReady: begin.");
 			$(".msg_box").hide();
-
-			app_startup();
 
 			$('#poiPage').live('pageshow', function(event, ui) {
 				$("#poiUpdateTitle").val(currentPoi.title);
@@ -42,7 +43,7 @@
 				});
 			});
 			$('#updatePoiPage').live('pageshow', function (event, ui) {
-				if (currentPoi.findGeo) {
+				if (currentPoi.findGeo && navigator && navigator.geolocation) {
 					$.mobile.changePage($('#gpsPositionWaitPage'));
 					navigator.geolocation.getCurrentPosition(initPoiPageWithGeoLocation, geolocationFailed);
 					return;
@@ -86,17 +87,24 @@
 				db_message("Sending posts to server.");
 				db_trySendItems(load_posts);
 			});
+			init_debug_tools();
+
+			app_startup();
+			console.log("onReady: done.");
 		});
 
 		function app_startup() {
+			console.log("app_startup: begin.");
 			if (db_canStoreToServer() && db_readItems() && db_readItems().length > 0) {
+				console.log("app_startup: redirect.");
 				$.mobile.changePage($('#offlineSendPage'));
 				return;
 			}
 
+			console.log("app_startup: loading posts.");
 			load_posts();
 		}
-		
+
 		function load_posts() {
 			$.ajax({
 				url: LIST_POSTS_URL,
@@ -135,58 +143,137 @@
 
 		function listSuccess(data) {
 			if (data.status == 'ok') {
-				$("#pageList").listview();
-				$.each(data.posts, function (key, post) {
-					$("#postItemTemplate").tmpl(post).appendTo("#pageList");
-				});
-				$("#pageList").listview('refresh');
-				$(".post_item_lnk").click(function () {
-					$("#poiList").empty();
-					poiPage_postId = $(this).data('id');
-				});
+				db_storePages(data.posts);
+				renderPageListData(data.posts);
+				refreshPageTree();
 				return;
 			}
+			renderPageListData();
 			$(".msg_box").show();
-			$(".msg_box").html('Failed to read data!');
+			$(".msg_box").html('Local data.');
 		}
 
 		function listError(param) {
+			renderPageListData();
 			$(".msg_box").show();
-			$(".msg_box").html('Failed to read data!');
+			$(".msg_box").html('Local data.');
+		}
+
+		function renderPageListData(pages) {
+			if (pages == null) {
+				pages = db_loadPages();
+			}
+			if (pages == null) {
+				$(".msg_box").show();
+				$(".msg_box").html('Local data not found. Load failed.');
+				return;
+			}
+			$("#pageList").listview();
+			$.each(pages, function (key, post) {
+				$("#postItemTemplate").tmpl(post).appendTo("#pageList");
+			});
+			$("#pageList").listview('refresh');
+			$(".post_item_lnk").click(function () {
+				$("#poiList").empty();
+				poiPage_postId = $(this).data('id');
+			});
+		}
+		
+		function refreshPageTree() {
+			var pages = db_loadPages();
+			if (pages) {
+				refreshPageTree_recc({ pages: pages, pos: 0 });
+			}
+		}
+
+		function refreshPageTree_recc(statusObj) {
+			var item = statusObj.pages[statusObj.pos];
+			$.ajax({
+				url: LIST_POIS_URL + item.id,
+				type: 'GET',
+				dataType: 'json',
+			    success: function (data) {
+			    	if (data.status == 'ok') {
+			    		db_storePois(item.id, data.page);
+			    		statusObj.pos = statusObj.pos + 1;
+			    		setTimeout(function() { refreshPageTree_recc(statusObj) }, 100);
+			    		return;
+			    	}
+			    },
+			    error: function () {}
+			});
 		}
 
 		var poiListInitialized = false;
 		function listPOIsSuccess(data) {
 			if (data.status == 'ok') {
-				if (!poiListInitialized) {
-					$("#poiList").listview();
-					poiListInitialized = true;
-				}
-				$("#pageLabel").html(data.page.title);
-
-				$("#poiList").empty();
-				$("#poiList").append('<li data-role="list-divider" role="heading">POIs</li>');
-				listedPois = {};
-				$.each(data.page.children, function (key, post) {
-					$("#poiItemTemplate").tmpl(post).appendTo("#poiList");
-					listedPois[post.id] = post;
-				});
-				$("#poiList").listview('refresh');
-				$(".poi_item_lnk").click(function () {
-					currentPoi = listedPois[$(this).data('id')];
-					$("#geolocationInfo").hide();
-				});
+				renderPagePois(data.page);
+				db_storePois(data.page.id, data.page);
 				return;
 			}
+			renderPagePois();
 			$(".msg_box").show();
 			$(".msg_box").html('Failed to read data!');
 		}
 
 		function listPOIsError(param) {
+			renderPagePois();
 			$(".msg_box").show();
 			$(".msg_box").html('Failed to read data!');
 		}
 
+		function renderPagePois(page) {
+			if (page == null) {
+				page = db_loadPois(poiPage_postId);
+			}
+			if (page == null) {
+				$(".msg_box").show();
+				$(".msg_box").html('Local data not found. Load failed.');
+				return;
+			}
+			if (!poiListInitialized) {
+				$("#poiList").listview();
+				poiListInitialized = true;
+			}
+			$("#pageLabel").html(page.title);
+
+			$("#poiList").empty();
+			$("#poiList").append('<li data-role="list-divider" role="heading">POIs</li>');
+			listedPois = {};
+			$.each(page.children, function (key, post) {
+				$("#poiItemTemplate").tmpl(post).appendTo("#poiList");
+				listedPois[post.id] = post;
+			});
+			$("#poiList").listview('refresh');
+			$(".poi_item_lnk").click(function () {
+				currentPoi = listedPois[$(this).data('id')];
+				$("#geolocationInfo").hide();
+			});
+		}
+
+		function init_debug_tools() {
+	        $("#jsSubmitQuery").click(function () {
+	        	var jsVal = $("#txtJSQuery").val();
+	        	$("#taJSResponse").html("");
+	        	$("#taJSResponse").html(JSON.stringify(eval(jsVal)));
+	        	appendJSQuery(jsVal);
+	        });
+	        appendJSQuery("db_readItems()");
+	        appendJSQuery("db_clearData()");
+	        appendJSQuery("db_storeItem({ t: 22 })");
+	        appendJSQuery("db_trySendItems()");
+		}
+
+		function appendJSQuery(queryStr) {
+			var newItem = $('<div class="query_item_to_init"></div>');
+			$("#jsQueryHistory").append(newItem);
+			$(".query_item_to_init").click(function () {
+				$("#txtJSQuery").val($(this).data('query'));
+			});
+			$(".query_item_to_init").data('query', queryStr);
+			$(".query_item_to_init").html(queryStr);
+			$(".query_item_to_init").removeClass("query_item_to_init");
+		}
 	</script>
 
 	<script id="postItemTemplate" type="text/x-jquery-tmpl">
@@ -222,6 +309,14 @@
 	                Pages
 	            </li>
 			</ul>
+	    </div>
+
+	    <div data-role="content" style="padding: 15px">
+	    	<div id="jsQueryHistory">
+	    	</div>
+	        <input name="" id="txtJSQuery" placeholder="" value="" type="text">
+	        <input type="button" id="jsSubmitQuery" value="GO"/>
+	        <div id="taJSResponse"></div>
 	    </div>
 	</div>
 
