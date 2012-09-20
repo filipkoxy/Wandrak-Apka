@@ -1,7 +1,8 @@
 
 var wandrakDB = {};
-var DB_ITEM_CNT_KEY = "offlineItemCnt";
+var DB_UNSAVED_ITEM_KEY_LIST = "offlineItemKeyList";
 var DB_ITEM_PREFIX_KEY = "offlineItemPrefix";
+var DB_LOCAL_POI_LAST_ID = "offlineLocalPoiLastId";
 
 var DB_OFFLINE_PAGE_KEY = "offlinePageJson";
 var DB_OFFLINE_POI_PREFIX_KEY = "offlinePoiPrefix";
@@ -14,40 +15,75 @@ function db_canStoreToServer() {
 	}
 }
 
-function db_storeItem(item) {
-	var itemCnt = window.localStorage.getItem(DB_ITEM_CNT_KEY);
+function db_nextLocalPoiId() {
+	var lastId = window.localStorage.getItem(DB_LOCAL_POI_LAST_ID);
 
-	if (!itemCnt) {
-		window.localStorage.setItem(DB_ITEM_CNT_KEY, 0);
-		itemCnt = window.localStorage.getItem(DB_ITEM_CNT_KEY);
+	if (!lastId) {
+		lastId = 1;
+		window.localStorage.setItem(DB_LOCAL_POI_LAST_ID, lastId);
 	}
 
-	window.localStorage.setItem(DB_ITEM_PREFIX_KEY + itemCnt, JSON.stringify(item));
-	itemCnt++;
-	window.localStorage.setItem(DB_ITEM_CNT_KEY, itemCnt);
+	lastId++;
+	window.localStorage.setItem(DB_LOCAL_POI_LAST_ID, lastId);
+
+	return 'local' + lastId;
+}
+
+function db_storeItem(item) {
+	var keysToSend = JSON.parse(window.localStorage.getItem(DB_UNSAVED_ITEM_KEY_LIST));
+
+	if (keysToSend == null) {
+		keysToSend = {};
+		window.localStorage.setItem(DB_UNSAVED_ITEM_KEY_LIST, JSON.stringify(keysToSend));
+	}
+
+	var storeItemKey = DB_ITEM_PREFIX_KEY + item.localId;
+	var currentItemValue = window.localStorage.getItem(storeItemKey);
+	if (currentItemValue && currentItemValue.redirect) {
+		storeItemKey = currentItemValue.redirect;
+	}
+	window.localStorage.setItem(storeItemKey, JSON.stringify(item));
+	keysToSend[item.localId] = item.localId;
+	window.localStorage.setItem(DB_UNSAVED_ITEM_KEY_LIST, JSON.stringify(keysToSend));
+
+	return storeItemKey;
 }
 
 function db_readItems() {
+	var keysToSend = JSON.parse(window.localStorage.getItem(DB_UNSAVED_ITEM_KEY_LIST));
+
+	if (keysToSend == null) {
+		return [];
+	}
+
 	var items = [];
 
-	var itemCnt = window.localStorage.getItem(DB_ITEM_CNT_KEY);
-	if (itemCnt) {
-		for (i=0; i < itemCnt; i++) {
-			items.push(JSON.parse(window.localStorage.getItem(DB_ITEM_PREFIX_KEY + i)));
-		}
-	}
+	$.each(keysToSend, function (itemKey, value) {
+		items.push(db_readItem(itemKey));
+	});
 
 	return items;
 }
 
+function db_readItem(dbKey) {
+	var storeItemKey = DB_ITEM_PREFIX_KEY + dbKey;
+	return JSON.parse(window.localStorage.getItem(storeItemKey));
+}
+
 function db_clearData() {
-	var itemCnt = window.localStorage.getItem(DB_ITEM_CNT_KEY);
-	window.localStorage.removeItem(DB_ITEM_CNT_KEY);
-	if (itemCnt) {
-		for (i=0; i < itemCnt; i++) {
-			window.localStorage.removeItem(DB_ITEM_PREFIX_KEY + i);
-		}
+	var keysToSend = JSON.parse(window.localStorage.getItem(DB_UNSAVED_ITEM_KEY_LIST));
+	window.localStorage.removeItem(DB_UNSAVED_ITEM_KEY_LIST);
+
+	if (keysToSend == null) {
+		return;
 	}
+
+	$.each(keysToSend, function (itemKey, value) {
+		if (itemKey && itemKey.indexOf('local') < 0) {
+			var storeItemKey = DB_ITEM_PREFIX_KEY + itemKey;
+			window.localStorage.removeItem(storeItemKey);
+		}
+	});
 }
 
 function db_trySendItems(finish_callback) {
@@ -71,6 +107,12 @@ function db_sendItemRecc(statusObj) {
 		    dataType: 'json',
 		    success: function (data) {
 		    	if (data.status == 'ok') {
+		    		if (item.localId && item.localId.indexOf && item.localId.indexOf('local') >= 0) {
+			    		var storeItemKey = DB_ITEM_PREFIX_KEY + item.localId;
+			    		item.redirect = data.post.id;
+			    		window.localStorage.setItem(storeItemKey, JSON.stringify(item));
+		    		}
+
 		    		statusObj.pos = statusObj.pos + 1;
 		    		setTimeout(function() { db_sendItemRecc(statusObj) }, 10);
 		    		return;
@@ -108,10 +150,15 @@ function db_sendItemClearSent(statusObj) {
 	}
 }
 
-function db_message(msg) {
+function db_message(msg, timeout) {
 	$(".msg_box").show();
 	$(".msg_box").html(msg);
-	setTimeout(function(){ $(".msg_box").hide(); }, 13000);
+
+	if (timeout == null) {
+		timeout = 13000;
+	}
+
+	setTimeout(function() { $(".msg_box").hide(); }, timeout);
 }
 
 function db_storePages(pagesJson) {
@@ -134,7 +181,7 @@ function db_loadPages() {
 function db_storePois(pageId, poisJson) {
 	var poisCleared = [];
 	$.each(poisJson.children, function (key, post) {
-		poisCleared.push({ id: post.id, title: post.title, content: post.content });
+		poisCleared.push({ id: post.id, title: post.title, content: post.content, localId: post.localId, custom_fields: post.custom_fields });
 	});
 	var pageData = { id: poisJson.id, title: poisJson.title, children: poisCleared };
 	window.localStorage.setItem(DB_OFFLINE_POI_PREFIX_KEY + pageId, JSON.stringify(pageData));
