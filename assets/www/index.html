@@ -19,9 +19,11 @@
 	<script type="text/javascript">
 		var LOGIN_PARAMS = '&user=admin&pass=heslo';
 
-		var LIST_POSTS_URL = 'http://wandrak.ideoci.eu/?json=get_root_posts';
-		var LIST_POIS_URL = 'http://wandrak.ideoci.eu/?json=get_page&children=1&page_id=';
-		var WRITE_PAGE_URL = 'http://wandrak.ideoci.eu/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
+		var BASE_URL = 'http://wandrak.ideoci.eu';
+		//var BASE_URL = 'http://localhost';
+		var LIST_POSTS_URL = BASE_URL + '/?json=get_root_posts';
+		var LIST_POIS_URL = BASE_URL + '/?json=get_page&children=1&page_id=';
+		var WRITE_PAGE_URL = BASE_URL + '/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
 
 		var poiPage_postId = 0;
 		var currentPoi = {};
@@ -73,7 +75,9 @@
 				}
 
 				var currentPoiId = '';
-				if (currentPoi.id && currentPoi.id.indexOf && currentPoi.id.indexOf('local') < 0) {
+				if (currentPoi.id && currentPoi.id.indexOf && currentPoi.id.indexOf('local') >= 0) {
+					currentPoiId = '';
+				} else {
 					currentPoiId = currentPoi.id;
 				}
 				
