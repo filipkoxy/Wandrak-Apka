@@ -25,6 +25,8 @@
 		var LIST_POIS_URL = BASE_URL + '/?json=get_page&children=1&page_id=';
 		var WRITE_PAGE_URL = BASE_URL + '/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
 
+		var GEOLOCATION_OPTIONS = { maximumAge: 180000, timeout: 200000, enableHighAccuracy: true };
+
 		var poiPage_postId = 0;
 		var currentPoi = {};
 		var listedPois = {};
@@ -47,7 +49,7 @@
 			$('#updatePoiPage').live('pageshow', function (event, ui) {
 				if (currentPoi.findGeo && navigator && navigator.geolocation) {
 					$.mobile.changePage($('#gpsPositionWaitPage'));
-					navigator.geolocation.getCurrentPosition(initPoiPageWithGeoLocation, geolocationFailed);
+					navigator.geolocation.getCurrentPosition(initPoiPageWithGeoLocation, geolocationFailed, GEOLOCATION_OPTIONS);
 					return;
 				}
 				initUpdatePoiPage();
@@ -151,7 +153,8 @@
 			$("#geolocationInfo").show();
 			$("#geolocationInfo").html(
 					'latitude: ' + position.coords.latitude + '<br/>' +
-					'longitude:' + position.coords.longitude);
+					'longitude:' + position.coords.longitude + '<br/>' +
+					'timestamp: ' + position.timestamp);
 
 			currentPoi.findGeo = false;
 			$.mobile.changePage($('#updatePoiPage'));
