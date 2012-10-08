@@ -25,7 +25,7 @@
 		var LIST_POIS_URL = BASE_URL + '/?json=get_page&children=1&page_id=';
 		var WRITE_PAGE_URL = BASE_URL + '/?json=create_post&status=publish&type=page&na=0' + LOGIN_PARAMS;
 
-		var GEOLOCATION_OPTIONS = { maximumAge: 180000, timeout: 200000, enableHighAccuracy: true };
+		var GEOLOCATION_OPTIONS = { maximumAge: 60000, timeout: 200000, enableHighAccuracy: true };
 
 		var poiPage_postId = 0;
 		var currentPoi = {};
@@ -117,6 +117,9 @@
 			$("#offlineSendOK").click(function () {
 				db_message("Sending posts to server.");
 				db_trySendItems(load_posts);
+			});
+			$("#offlineSendCancel").click(function () {
+				load_posts();
 			});
 			init_debug_tools();
 
@@ -465,7 +468,7 @@
 	        <a data-role="button" data-inline="true" data-transition="fade" href="#mainPage" id="offlineSendOK">
 	            OK
 	        </a>
-	        <a data-role="button" data-inline="true" data-transition="fade" href="#mainPage">
+	        <a data-role="button" data-inline="true" data-transition="fade" href="#mainPage" id="offlineSendCancel">
 	            Cancel
 	        </a>
 	    </div>
